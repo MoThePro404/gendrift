@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gendrift Simulation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EDF2EF;
+  --surface:#FFFFFF;
+  --ink:#14302B;
+  --muted:#52665F;
+  --line:#D2DCD7;
+  --accent:#0F6B5C;
+  --accent-hover:#0B5649;
+  --accent-soft:#DCEDE7;
+  --marker:#FFF0A3;
+  --danger:#B3261E;
+  --focus:#F2B705;
+  --font:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:var(--font);
+  font-size:17px;
+  line-height:1.5;
+  color:var(--ink);
+  background:var(--paper);
+  -webkit-font-smoothing:antialiased;
+}
+[hidden]{display:none !important}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+/* ---------- Startseite ---------- */
+.home{
+  max-width:1200px;
+  margin:0 auto;
+  padding:36px 28px 24px;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  gap:28px;
+}
+.hero{
+  display:grid;
+  grid-template-columns:minmax(0,5fr) minmax(0,7fr);
+  gap:40px;
+  align-items:center;
+}
+.hero h1{
+  margin:0;
+  font-size:clamp(56px,7.4vw,104px);
+  line-height:.92;
+  letter-spacing:-.025em;
+}
+.hero .sub{
+  margin:10px 0 20px;
+  font-size:clamp(22px,2.3vw,30px);
+  color:var(--accent);
+  font-weight:700;
+}
+.hero .lead{
+  margin:0;
+  font-size:19px;
+  max-width:31em;
+}
+.hero .lead + .lead{margin-top:10px;color:var(--muted)}
+.plot{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:14px 16px 12px;
+}
+.plot canvas{display:block;width:100%;height:300px}
+.plot-foot{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  margin-top:8px;
+  font-size:15px;
+  color:var(--muted);
+}
+.plot-foot p{margin:0}
+.plot-foot strong{color:var(--ink)}
+.choices{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:16px;
+}
+.choice{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  text-align:left;
+  padding:0;
+  background:var(--surface);
+  border:1.5px solid var(--line);
+  border-radius:12px;
+  cursor:pointer;
+  overflow:hidden;
+}
+.choice:hover{border-color:var(--accent)}
+.choice svg{display:block;width:100%;height:84px;background:#F4F8F6;border-bottom:1px solid var(--line)}
+.choice span{display:block;padding:12px 16px 16px}
+.choice b{display:block;font-size:20px;line-height:1.25;margin-bottom:4px}
+.choice small{display:block;font-size:15.5px;line-height:1.45;color:var(--muted)}
+.footnote{
+  margin-top:auto;
+  font-size:14.5px;
+  color:var(--muted);
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px 28px;
+}
+.footnote p{margin:0}
+
+/* ---------- Simulation ---------- */
+.app{
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  height:100vh;
+  height:100dvh;
+}
+.topbar{
+  display:flex;
+  align-items:center;
+  gap:18px;
+  padding:8px 16px;
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+  min-width:0;
+}
+.back{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border:0;
+  background:none;
+  padding:8px 10px 8px 4px;
+  border-radius:8px;
+  font-weight:700;
+  font-size:16px;
+  color:var(--accent);
+  cursor:pointer;
+  white-space:nowrap;
+}
+.back:hover{background:var(--accent-soft)}
+.back svg{width:18px;height:18px}
+.tabs{display:flex;gap:4px;min-width:0;overflow-x:auto}
+.tab{
+  border:0;
+  background:none;
+  padding:9px 14px;
+  border-radius:8px;
+  font-size:16px;
+  color:var(--muted);
+  cursor:pointer;
+  white-space:nowrap;
+}
+.tab:hover{background:#F1F5F3;color:var(--ink)}
+.tab[aria-current="page"]{background:var(--accent-soft);color:var(--accent);font-weight:700}
+
+.sim-body{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(320px,370px);
+  gap:12px;
+  padding:12px;
+  min-height:0;
+}
+.stage-col{
+  display:grid;
+  grid-template-rows:minmax(0,1fr) minmax(150px,27%) auto;
+  gap:12px;
+  min-height:0;
+  min-width:0;
+}
+.stage,.chart{
+  position:relative;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:14px;
+  overflow:hidden;
+  min-height:0;
+}
+.stage canvas,.chart canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+.controls{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px;
+  padding:10px 12px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:12px;
+}
+.btn{
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  min-height:46px;
+  padding:10px 16px;
+  border:1.5px solid var(--line);
+  border-radius:8px;
+  background:var(--surface);
+  font-size:16px;
+  font-weight:700;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.btn:hover:not(:disabled){border-color:var(--accent);background:#F6FAF8}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn .num{
+  display:inline-grid;
+  place-items:center;
+  width:24px;height:24px;
+  border-radius:50%;
+  background:var(--accent-soft);
+  color:var(--accent);
+  font-size:14px;
+}
+.btn.primary .num{background:rgba(255,255,255,.22);color:#fff}
+.btn svg{width:16px;height:16px}
+.seg{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin:0 6px 0 0;
+  padding:0;
+  border:0;
+}
+.seg legend{float:left;padding:0;margin-right:8px;font-size:15px;color:var(--muted)}
+.seg .opts{display:inline-flex;border:1.5px solid var(--line);border-radius:8px;overflow:hidden}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.seg label span{display:block;padding:10px 13px;font-weight:700;font-size:15px;cursor:pointer}
+.seg label + label span{border-left:1.5px solid var(--line)}
+.seg input:checked + span{background:var(--ink);color:#fff}
+.seg input:focus-visible + span{outline:3px solid var(--focus);outline-offset:-3px}
+.kbd-hint{margin-left:auto;padding-left:12px;font-size:14px;color:var(--muted);white-space:nowrap}
+.kbd-hint kbd + kbd, .kbd-hint kbd:not(:first-child){margin-left:10px}
+kbd{
+  font-family:inherit;
+  font-size:13px;
+  padding:1px 6px;
+  border:1px solid var(--line);
+  border-bottom-width:2px;
+  border-radius:5px;
+  background:#F7FAF8;
+  color:var(--ink);
+}
+
+.side{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:12px;
+  overflow:hidden;
+}
+.side section{padding:14px 16px}
+.side section + section{border-top:1px solid var(--line)}
+.info{flex:0 1 auto;overflow:auto;min-height:120px}
+.info h2{margin:0 0 6px;font-size:21px;line-height:1.25}
+.info p{margin:0 0 8px}
+.info .next{
+  display:flex;
+  gap:8px;
+  align-items:baseline;
+  margin:10px 0 0;
+  font-size:15.5px;
+  color:var(--accent);
+  font-weight:700;
+}
+.info .next::before{
+  content:"";
+  flex:none;
+  width:8px;height:8px;
+  border-radius:50%;
+  background:var(--accent);
+  transform:translateY(-1px);
+}
+.side section.merke-wrap{flex:none;padding:0 16px 14px;border-top:0}
+.merke{
+  padding:10px 12px;
+  background:var(--marker);
+  border-radius:4px 10px 6px 12px;
+  font-size:15.5px;
+  line-height:1.45;
+}
+.merke b{margin-right:4px}
+.stats{flex:none}
+.side h3{margin:0 0 8px;font-size:14.5px;color:var(--muted);font-weight:700}
+.statline{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.statline .big{font-size:24px;font-weight:700;line-height:1.1}
+.statline .small{font-size:15px;color:var(--muted)}
+.pool{
+  display:flex;
+  height:30px;
+  border-radius:6px;
+  overflow:hidden;
+  border:1px solid rgba(20,48,43,.18);
+}
+.pool div{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:14px;
+  font-weight:700;
+  color:#fff;
+  overflow:hidden;
+  white-space:nowrap;
+  transition:flex-grow .35s ease;
+}
+.status{
+  display:inline-block;
+  margin-top:10px;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:14.5px;
+  font-weight:700;
+  background:var(--accent-soft);
+  color:var(--accent);
+}
+.status.end{background:#FBE3E1;color:var(--danger)}
+.kv{width:100%;border-collapse:collapse;font-size:15.5px}
+.kv td{padding:4px 0;vertical-align:middle}
+.kv td:last-child{text-align:right}
+.kv tr.current td{font-weight:700}
+.kv .arrow{color:var(--muted);padding:0 4px}
+.lost{color:var(--danger);font-weight:700}
+.al{
+  display:inline-grid;
+  place-items:center;
+  min-width:1.5em;
+  height:1.5em;
+  padding:0 .25em;
+  border-radius:5px;
+  color:#fff;
+  font-weight:700;
+  font-size:.86em;
+  line-height:1;
+  vertical-align:.08em;
+}
+.al.gone{background:#E3E8E5 !important;color:#7C8C86 !important;text-decoration:line-through}
+.log{flex:1 1 0;min-height:76px;overflow:auto}
+.log ol{list-style:none;margin:0;padding:0;font-size:14.5px;line-height:1.4}
+.log li{padding:5px 0;border-bottom:1px dashed #DDE5E1}
+.log li:last-child{border-bottom:0;font-weight:700}
+
+.pop{
+  position:absolute;
+  z-index:3;
+  width:230px;
+  padding:12px 14px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:10px;
+  box-shadow:0 6px 24px rgba(20,48,43,.18);
+  font-size:15px;
+  line-height:1.45;
+}
+.pop b{display:block;font-size:17px;margin-bottom:4px}
+.pop p{margin:0}
+.pop .close{
+  position:absolute;top:6px;right:6px;
+  width:28px;height:28px;
+  border:0;border-radius:6px;
+  background:none;cursor:pointer;
+  font-size:20px;line-height:1;color:var(--muted);
+}
+.pop .close:hover{background:#F1F5F3}
+.stage-hint{
+  position:absolute;
+  right:12px;
+  bottom:10px;
+  font-size:13.5px;
+  color:var(--muted);
+  pointer-events:none;
+}
+
+/* ---------- Responsiv ---------- */
+@media (max-width:1100px){
+  .kbd-hint{display:none}
+}
+@media (max-height:800px) and (min-width:961px){
+  .home{padding-top:24px;gap:22px}
+  .plot canvas{height:270px}
+  .choice svg{height:72px}
+}
+@media (max-width:960px){
+  .hero{grid-template-columns:1fr;gap:24px}
+  .choices{grid-template-columns:1fr}
+  .app{height:auto;min-height:100vh}
+  .sim-body{grid-template-columns:1fr}
+  .stage-col{grid-template-rows:auto auto auto}
+  .stage{height:min(62vw,460px);min-height:300px}
+  .chart{height:230px}
+  .info{min-height:0}
+  .log{flex:none;max-height:220px}
+  .topbar{flex-wrap:wrap;gap:6px}
+}
+@media (max-width:600px){
+  .home{padding:24px 16px}
+  .sim-body{padding:8px}
+  .btn{padding:10px 12px;font-size:15px}
+  .plot canvas{height:240px}
+  .plot-foot{flex-direction:column}
+}
+@media (prefers-reduced-motion:reduce){
+  .pool div{transition:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= Startseite ================= -->
+<main id="home" class="home">
+  <section class="hero">
+    <div>
+      <h1>Gendrift</h1>
+      <p class="sub">Evolution durch Zufall</p>
+      <p class="lead">Gendrift ist die zufällige Veränderung der Allelhäufigkeit in einer Population. Kein Allel hat einen Vorteil, trotzdem kann eines verschwinden und ein anderes sich durchsetzen.</p>
+      <p class="lead">Besonders stark wirkt Gendrift in kleinen Populationen.</p>
+    </div>
+    <figure class="plot" style="margin:0">
+      <canvas id="heroCanvas" aria-label="Diagramm: acht Populationen, deren Anteil an Allel A sich über 60 Generationen zufällig verändert"></canvas>
+      <figcaption class="plot-foot">
+        <p id="heroCaption">8 Populationen mit je 20 Tieren, alle starten bei 50 % Allel A. Kein Allel hat einen Vorteil.</p>
+        <button class="btn" id="heroAgain" type="button">Neu würfeln</button>
+      </figcaption>
+    </figure>
+  </section>
+
+  <nav class="choices" aria-label="Simulation wählen">
+    <button class="choice" type="button" data-mode="main">
+      <svg viewBox="0 0 300 84" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <g id="illuMain"></g>
+      </svg>
+      <span><b>Gendrift in einer Population</b><small>Generation für Generation zusehen, wie sich die Allelhäufigkeit zufällig verändert, bis ein Allel fixiert ist.</small></span>
+    </button>
+    <button class="choice" type="button" data-mode="bn">
+      <svg viewBox="0 0 300 84" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <path d="M168 33 H142 C128 33 124 12 112 12 H34 a10 10 0 0 0 -10 10 V62 a10 10 0 0 0 10 10 H112 C124 72 128 51 142 51 H168" fill="#E4F0F4" stroke="#52665F" stroke-width="2"/>
+        <rect x="166" y="29" width="7" height="26" rx="2" fill="#E4F0F4" stroke="#52665F" stroke-width="2"/>
+        <g id="illuBn"></g>
+      </svg>
+      <span><b>Flaschenhalseffekt</b><small>Nach einer Katastrophe überleben nur wenige Tiere. Was passiert mit der genetischen Vielfalt?</small></span>
+    </button>
+    <button class="choice" type="button" data-mode="founder">
+      <svg viewBox="0 0 300 84" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <rect width="300" height="84" fill="#DCEEF5"/>
+        <ellipse cx="78" cy="42" rx="62" ry="32" fill="#D5E6C0" stroke="#7E9A6A" stroke-width="1.5"/>
+        <ellipse cx="236" cy="44" rx="40" ry="24" fill="#EFE5BC" stroke="#B7A66A" stroke-width="1.5"/>
+        <path d="M144 40 C164 26 180 26 192 36" fill="none" stroke="#52665F" stroke-width="2" stroke-dasharray="5 5"/>
+        <path d="M186 30 L194 37 L184 40" fill="none" stroke="#52665F" stroke-width="2"/>
+        <g id="illuFounder"></g>
+      </svg>
+      <span><b>Gründereffekt</b><small>Eine kleine Gruppe besiedelt eine Insel und nimmt nur einen Teil der Allele mit.</small></span>
+    </button>
+  </nav>
+
+  <footer class="footnote">
+    <p>Vereinfachtes Modell: Jedes Tier trägt genau ein Allel. Alle Tiere haben die gleiche Chance auf Nachkommen, es gibt keine Selektion.</p>
+    <p>Tastatur: <kbd>Leertaste</kbd> nächster Schritt, <kbd>R</kbd> neu starten, <kbd>Esc</kbd> Übersicht</p>
+  </footer>
+</main>
+
+<!-- ================= Simulation ================= -->
+<div id="sim" class="app" hidden>
+  <header class="topbar">
+    <button class="back" id="backBtn" type="button">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4 6.5 10l6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Übersicht
+    </button>
+    <nav class="tabs" aria-label="Simulation wechseln">
+      <button class="tab" type="button" data-mode="main">Gendrift in einer Population</button>
+      <button class="tab" type="button" data-mode="bn">Flaschenhalseffekt</button>
+      <button class="tab" type="button" data-mode="founder">Gründereffekt</button>
+    </nav>
+    <span class="kbd-hint"><kbd>Leertaste</kbd> nächster Schritt <kbd>R</kbd> neu starten</span>
+  </header>
+
+  <div class="sim-body">
+    <div class="stage-col">
+      <div class="stage" id="stage">
+        <canvas id="sceneCanvas"></canvas>
+        <div class="stage-hint" id="stageHint"></div>
+        <div class="pop" id="pop" role="dialog" aria-live="polite" hidden></div>
+      </div>
+      <div class="chart"><canvas id="chartCanvas"></canvas></div>
+      <div class="controls" id="controls"></div>
+    </div>
+
+    <aside class="side">
+      <section class="info" id="info" aria-live="polite"></section>
+      <section class="merke-wrap"><div class="merke" id="merke"></div></section>
+      <section class="stats" id="stats"></section>
+      <section class="log">
+        <h3>Verlauf</h3>
+        <ol id="log"></ol>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   Grundlagen
+   ============================================================ */
+const FONT = '"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+const C = {
+  ink:"#14302B", muted:"#52665F", line:"#D2DCD7", grid:"#E4EBE7", accent:"#0F6B5C",
+  sky:"#DCEBF4", meadow:"#D6E8C3", hill:"#C9E0B2",
+  sea:"#C6E2EE", wave:"#AFD3E3", land:"#D5E6C0", landEdge:"#7E9A6A",
+  sand:"#EFE5BC", sandEdge:"#B7A66A", glass:"rgba(214,234,242,.55)", glassEdge:"#52665F",
+  ghost:"#CBD5D0", ghostEdge:"#AAB8B2", marker:"#FFF0A3", blue:"#2F6FDB", red:"#D9473F"
+};
+const PALETTES = {
+  main:   {A:"#2F6FDB", a:"#D9473F"},
+  bn:     {A:"#2F6FDB", B:"#D9473F", C:"#2E9B57", D:"#E0A21B", E:"#8A5CD6", F:"#F07A1A"},
+  founder:{A:"#2F6FDB", B:"#2E9B57", C:"#F07A1A"}
+};
+const COLOR_NAMES = {A:"blau", a:"rot"};
+const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const $ = s => document.querySelector(s);
+const rand = n => Math.floor(Math.random()*n);
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){ const j=rand(i+1); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function countBy(animals, keys){
+  const c={}; keys.forEach(k=>c[k]=0);
+  animals.forEach(x=>{ c[x.allele]=(c[x.allele]||0)+1; });
+  return c;
+}
+function present(animals){ return [...new Set(animals.map(a=>a.allele))].sort(); }
+const pct = (k,n) => n ? Math.round(k/n*100) : 0;
+function listDe(arr){
+  if(arr.length<=1) return arr.join("");
+  return arr.slice(0,-1).join(", ")+" und "+arr[arr.length-1];
+}
+function sortByAllele(arr, keys){
+  return [...arr].sort((x,y)=>keys.indexOf(x.allele)-keys.indexOf(y.allele));
+}
+function hexRgb(hex){ const n=parseInt(hex.slice(1),16); return [n>>16,(n>>8)&255,n&255]; }
+function mix(hex, target, p){
+  const [r,g,b]=hexRgb(hex), t=target==="white"?255:0;
+  return `rgb(${Math.round(r+(t-r)*p)},${Math.round(g+(t-g)*p)},${Math.round(b+(t-b)*p)})`;
+}
+function isLight(hex){
+  const [r,g,b]=hexRgb(hex).map(v=>{ v/=255; return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4); });
+  return .2126*r+.7152*g+.0722*b > .3;
+}
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+/* {A} im Text wird zu einem farbigen Allel-Kästchen */
+function fmt(s, palette){
+  palette = palette || PALETTES[MODE] || PALETTES.main;
+  return esc(s).replace(/\{([A-Fa])\}/g,(m,k)=>chip(k,palette));
+}
+function chip(k, palette, gone){
+  const col = palette[k] || "#888";
+  const fg = isLight(col) ? C.ink : "#fff";
+  return `<span class="al${gone?" gone":""}" style="background:${col};color:${fg}">${k}</span>`;
+}
+
+/* ============================================================
+   Canvas-Werkzeuge
+   ============================================================ */
+function prep(canvas){
+  const r = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, r.width), h = Math.max(1, r.height);
+  const W = Math.round(w*dpr), H = Math.round(h*dpr);
+  if(canvas.width!==W || canvas.height!==H){ canvas.width=W; canvas.height=H; }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  return {ctx,w,h};
+}
+function txt(ctx, s, x, y, o={}){
+  ctx.font = `${o.weight||400} ${o.size||14}px ${FONT}`;
+  ctx.fillStyle = o.color || C.ink;
+  ctx.textAlign = o.align || "left";
+  ctx.textBaseline = o.base || "alphabetic";
+  ctx.fillText(s, x, y);
+  return ctx.measureText(s).width;
+}
+function rrect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  if(ctx.roundRect){ ctx.roundRect(x,y,w,h,r); return; }
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function pill(ctx, s, x, y, o={}){
+  const size=o.size||15;
+  ctx.font=`700 ${size}px ${FONT}`;
+  const tw=ctx.measureText(s).width, padX=12, hh=size+14;
+  let bx = o.align==="center" ? x-(tw+padX*2)/2 : o.align==="right" ? x-(tw+padX*2) : x;
+  ctx.fillStyle=o.bg||C.marker;
+  rrect(ctx,bx,y,tw+padX*2,hh,hh/2); ctx.fill();
+  txt(ctx,s,bx+padX,y+hh/2+1,{size,weight:700,color:o.color||C.ink,base:"middle"});
+}
+/* Tiere möglichst groß in ein Rechteck einpassen */
+function fitGrid(n, rect, maxCell=84){
+  if(n<=0 || rect.w<=0 || rect.h<=0) return {cell:0,pos:[]};
+  let best={cols:1,cell:0};
+  for(let cols=1; cols<=n; cols++){
+    const rows=Math.ceil(n/cols);
+    const cell=Math.min(rect.w/cols, rect.h/rows);
+    if(cell>best.cell+0.01) best={cols,cell};
+  }
+  const cell=Math.min(maxCell,best.cell), cols=best.cols, rows=Math.ceil(n/cols);
+  const x0=rect.x+(rect.w-cols*cell)/2, y0=rect.y+(rect.h-rows*cell)/2;
+  const pos=[];
+  for(let i=0;i<n;i++){
+    const row=Math.floor(i/cols), inRow=Math.min(cols, n-row*cols);
+    const rowOffset=(cols-inRow)*cell/2;           // letzte Reihe mittig
+    pos.push({x:x0+rowOffset+(i%cols+.5)*cell, y:y0+(row+.5)*cell});
+  }
+  return {cell,pos};
+}
+/* Ein Tier zeichnen. cell = Größe der Gitterzelle */
+function bunny(ctx, cx, cy, cell, color, label, o={}){
+  const s=cell, ghost=!!o.ghost;
+  const body = ghost ? C.ghost : color;
+  const edge = ghost ? C.ghostEdge : mix(color,"black",.35);
+  const inner = ghost ? "#DCE3DF" : mix(color,"white",.45);
+  const by = cy + .08*s, r = .27*s;
+  ctx.save();
+  ctx.globalAlpha = o.alpha==null ? 1 : o.alpha;
+  ctx.lineWidth = Math.max(1, s*.022);
+  ctx.strokeStyle = edge;
+  // Schatten
+  ctx.fillStyle="rgba(20,48,43,.13)";
+  ctx.beginPath(); ctx.ellipse(cx, by+.34*s, .25*s, .055*s, 0, 0, Math.PI*2); ctx.fill();
+  // Ohren
+  for(const side of [-1,1]){
+    const ex=cx+side*.13*s, ey=by-.36*s, rot=side*.13;
+    ctx.fillStyle=body;
+    ctx.beginPath(); ctx.ellipse(ex,ey,.085*s,.21*s,rot,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=inner;
+    ctx.beginPath(); ctx.ellipse(ex,ey+.02*s,.038*s,.14*s,rot,0,Math.PI*2); ctx.fill();
+  }
+  // Füße
+  ctx.fillStyle=body;
+  for(const side of [-1,1]){
+    ctx.beginPath(); ctx.ellipse(cx+side*.13*s, by+.27*s, .09*s, .065*s, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  }
+  // Körper
+  ctx.beginPath(); ctx.arc(cx,by,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  // Auge
+  ctx.fillStyle = ghost ? "#93A39C" : C.ink;
+  ctx.beginPath(); ctx.arc(cx+.135*s, by-.15*s, Math.max(1.2,.028*s), 0, Math.PI*2); ctx.fill();
+  // Markierung
+  if(o.ring){
+    ctx.strokeStyle="#F2B705"; ctx.lineWidth=Math.max(2.5,s*.045);
+    ctx.beginPath(); ctx.arc(cx,by,r+Math.max(3,s*.05),0,Math.PI*2); ctx.stroke();
+  }
+  // Allel-Buchstabe
+  if(label && s>=22){
+    const fg = ghost ? "#8A9893" : (isLight(color) ? C.ink : "#fff");
+    txt(ctx,label,cx-.02*s,by+.012*s,{size:Math.round(.25*s),weight:700,color:fg,align:"center",base:"middle"});
+  }
+  ctx.restore();
+}
+function cloud(ctx,x,y,s){
+  ctx.fillStyle="rgba(255,255,255,.95)";
+  for(const [dx,dy,rx,ry] of [[0,10,30,15],[26,2,32,19],[56,10,26,14]]){
+    ctx.beginPath(); ctx.ellipse(x+dx*s,y+dy*s,rx*s,ry*s,0,0,Math.PI*2); ctx.fill();
+  }
+}
+/* Genpool-Balken auf dem Canvas */
+function poolBar(ctx, x, y, w, h, animals, palette, caption){
+  const keys=Object.keys(palette), n=animals.length, c=countBy(animals,keys);
+  ctx.save();
+  rrect(ctx,x,y,w,h,5); ctx.clip();
+  ctx.fillStyle="#EEF2F0"; ctx.fillRect(x,y,w,h);
+  let cx=x;
+  for(const k of keys){
+    if(!c[k]) continue;
+    const sw = w*c[k]/n;
+    ctx.fillStyle=palette[k]; ctx.fillRect(cx,y,sw+.5,h);
+    if(sw>=18 && h>=14) txt(ctx,k,cx+sw/2,y+h/2+1,{size:Math.min(13,h-3),weight:700,color:isLight(palette[k])?C.ink:"#fff",align:"center",base:"middle"});
+    cx+=sw;
+  }
+  ctx.restore();
+  ctx.strokeStyle="rgba(20,48,43,.25)"; ctx.lineWidth=1;
+  rrect(ctx,x+.5,y+.5,w-1,h-1,5); ctx.stroke();
+  if(caption) txt(ctx,caption,x+w/2,y+h+16,{size:13.5,color:C.muted,align:"center"});
+}
+
+/* ============================================================
+   Zustand, Navigation, Rendering
+   ============================================================ */
+let MODE = null;
+let S = {};
+let lastAction = 0;
+let autoTimer = null;
+let renderQueued = false;
+
+const sceneCanvas = $("#sceneCanvas");
+const chartCanvas = $("#chartCanvas");
+const stageEl = $("#stage");
+const popEl = $("#pop");
+
+const MODES = {
+  main:{
+    title:"Gendrift in einer Population", hash:"population",
+    merke:"Gendrift ist die zufällige Veränderung der Allelhäufigkeit. In kleinen Populationen wirkt sie besonders stark."
+  },
+  bn:{
+    title:"Flaschenhalseffekt", hash:"flaschenhals",
+    merke:"Beim Flaschenhalseffekt überleben nur wenige Tiere zufällig. Genetische Vielfalt geht verloren, auch wenn die Population wieder wächst."
+  },
+  founder:{
+    title:"Gründereffekt", hash:"gruender",
+    merke:"Beim Gründereffekt gründet eine kleine Gruppe eine neue Population und bringt nur einen zufälligen Teil der Allele mit."
+  }
+};
+
+function requestRender(){
+  if(renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(()=>{ renderQueued=false; render(); });
+}
+function render(){
+  if(!$("#home").hidden){ drawHero(); return; }
+  if(!MODE) return;
+  const now = performance.now();
+  const s = prep(sceneCanvas);
+  if(MODE==="main") drawMainScene(s.ctx,s.w,s.h,now);
+  if(MODE==="bn") drawBnScene(s.ctx,s.w,s.h,now);
+  if(MODE==="founder") drawFounderScene(s.ctx,s.w,s.h,now);
+  const c = prep(chartCanvas);
+  if(MODE==="main") drawMainChart(c.ctx,c.w,c.h);
+  else drawPoolHistory(c.ctx,c.w,c.h);
+  if(!REDUCED && now-lastAction < 900) requestRender();
+}
+/* Einblend-Animation für neue Tiere */
+function fadeIn(a, i, now){
+  if(REDUCED || !a.t0) return 1;
+  const t = (now - a.t0 - Math.min(i*14, 420)) / 260;
+  return Math.max(0, Math.min(1, t));
+}
+
+function showHome(){
+  stopAuto();
+  closePop();
+  MODE = null;
+  $("#sim").hidden = true;
+  $("#home").hidden = false;
+  if(location.hash) history.replaceState(null,"",location.pathname);
+  heroStart();
+}
+function start(mode){
+  stopAuto();
+  closePop();
+  const keepN = (MODE==="main" && S.N) ? S.N : 20;
+  MODE = mode;
+  $("#home").hidden = true;
+  $("#sim").hidden = false;
+  document.querySelectorAll(".tab").forEach(t=>{
+    const on = t.dataset.mode===mode;
+    t.setAttribute("aria-current", on ? "page" : "false");
+    if(on) t.parentElement.scrollLeft = t.offsetLeft - t.parentElement.offsetLeft - 8;
+  });
+  document.title = MODES[mode].title + " – Gendrift";
+  const h = "#"+MODES[mode].hash;
+  if(location.hash!==h) history.replaceState(null,"",h);
+  $("#log").innerHTML = "";
+  $("#stageHint").textContent = mode==="main" ? "Klicke auf ein Tier für Details" : "";
+  if(mode==="main") mainInit(keepN);
+  if(mode==="bn") bnInit();
+  if(mode==="founder") founderInit();
+  buildControls();
+  update();
+}
+function update(){
+  updateControls();
+  renderStats();
+  requestRender();
+}
+
+/* ---------- Infotext, Verlauf ---------- */
+function setInfo(title, paras, next){
+  $("#info").innerHTML =
+    `<h2>${fmt(title)}</h2>` +
+    paras.map(p=>`<p>${fmt(p)}</p>`).join("") +
+    (next ? `<p class="next">${fmt(next)}</p>` : "");
+  $("#merke").innerHTML = `<b>Merke:</b>${fmt(MODES[MODE].merke)}`;
+  $("#info").scrollTop = 0;
+}
+function addLog(s){
+  const li = document.createElement("li");
+  li.innerHTML = fmt(s);
+  const ol = $("#log");
+  ol.appendChild(li);
+  ol.parentElement.scrollTop = ol.parentElement.scrollHeight;
+}
+
+/* ---------- Steuerung ---------- */
+const CONTROLS = {
+  main: [
+    {id:"next",  label:"Nächste Generation", act:()=>mainNext(),
+      enabled:()=>!S.fixed, primary:()=>!S.fixed, why:"Ein Allel ist fixiert. Starte neu."},
+    {id:"auto",  label:()=>S.auto ? "Pause" : "Abspielen", icon:()=>S.auto?"pause":"play", act:()=>toggleAuto(),
+      enabled:()=>!S.fixed, why:"Ein Allel ist fixiert. Starte neu."},
+    {id:"event", label:"Zufallsereignis", act:()=>mainEvent(),
+      enabled:()=>!S.fixed && !S.pending, why:()=>S.fixed?"Ein Allel ist fixiert. Starte neu.":"Erst die nächste Generation erzeugen."},
+    {id:"reset", label:"Neu starten", act:()=>start("main"), enabled:()=>true, primary:()=>!!S.fixed}
+  ],
+  bn: [
+    {id:"disaster", num:1, label:"Katastrophe auslösen", act:()=>bnDisaster(),
+      enabled:()=>S.phase!=="disaster", primary:()=>S.phase!=="disaster", why:"Erst muss die Population wieder wachsen."},
+    {id:"regrow", num:2, label:"Population wächst wieder", act:()=>bnRegrow(),
+      enabled:()=>S.phase==="disaster", primary:()=>S.phase==="disaster", why:"Erst eine Katastrophe auslösen."},
+    {id:"reset", label:"Neu starten", act:()=>start("bn"), enabled:()=>true}
+  ],
+  founder: [
+    {id:"select", num:1, label:"Gründergruppe auswählen", act:()=>founderSelect(),
+      enabled:()=>S.phase!=="selected", primary:()=>S.phase!=="selected", why:"Die Gründergruppe ist schon unterwegs."},
+    {id:"island", num:2, label:"Inselpopulation bilden", act:()=>founderIsland(),
+      enabled:()=>S.phase==="selected", primary:()=>S.phase==="selected", why:"Erst eine Gründergruppe auswählen."},
+    {id:"reset", label:"Neu starten", act:()=>start("founder"), enabled:()=>true}
+  ]
+};
+const ICONS = {
+  play:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>',
+  pause:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z" fill="currentColor"/></svg>'
+};
+const val = v => typeof v==="function" ? v() : v;
+
+function buildControls(){
+  const box = $("#controls");
+  box.innerHTML = "";
+  if(MODE==="main"){
+    const fs = document.createElement("fieldset");
+    fs.className = "seg";
+    fs.innerHTML = `<legend>Tiere</legend><div class="opts">${[10,20,50].map(n=>
+      `<label><input type="radio" name="popN" value="${n}" ${S.N===n?"checked":""}><span>${n}</span></label>`).join("")}</div>`;
+    fs.addEventListener("change", e=>{ S.N = +e.target.value; start("main"); });
+    box.appendChild(fs);
+  }
+  for(const c of CONTROLS[MODE]){
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn";
+    b.dataset.id = c.id;
+    b.addEventListener("click", e=>{
+      if(e.detail>0) b.blur();          // Maus: Fokus lösen, damit die Leertaste den nächsten Schritt auslöst
+      if(c.enabled()) c.act();
+    });
+    box.appendChild(b);
+  }
+}
+function updateControls(){
+  for(const c of CONTROLS[MODE]){
+    const b = $(`#controls .btn[data-id="${c.id}"]`);
+    if(!b) continue;
+    const en = c.enabled();
+    const icon = c.icon ? ICONS[val(c.icon)] : "";
+    b.innerHTML = (c.num ? `<span class="num">${c.num}</span>` : "") + icon + esc(val(c.label));
+    b.disabled = !en;
+    b.title = en ? "" : val(c.why) || "";
+    b.classList.toggle("primary", !!(c.primary && c.primary() && en));
+  }
+}
+function runPrimary(){
+  const c = CONTROLS[MODE].find(c=>c.primary && c.primary() && c.enabled());
+  if(c) c.act();
+}
+
+/* ============================================================
+   1) Gendrift in einer Population
+   ============================================================ */
+const EVENTS_MAIN = ["Sturm","Waldbrand","Überschwemmung","Kälteeinbruch"];
+
+function mainInit(N){
+  const now = performance.now();
+  S = {N, gen:1, fixed:null, pending:null, auto:false, hits:[], animals:[], history:[]};
+  for(let i=0;i<N;i++){
+    const al = i<N/2 ? "A" : "a";
+    S.animals.push({id:i+1, allele:al, gen:1, p1:null, p2:null, from:null, t0:now});
+  }
+  S.history.push({gen:1, A:N/2, a:N/2, event:null});
+  lastAction = now;
+  addLog(`Start: {A} ${N/2} Tiere, {a} ${N/2} Tiere`);
+  setInfo("Startpopulation",
+    [`${N} Tiere: ${N/2} tragen Allel {A} (blau), ${N/2} tragen Allel {a} (rot).`,
+     "Keines der beiden Allele bringt einen Vorteil. Jedes Tier hat die gleiche Chance auf Nachkommen."],
+    "Klicke auf „Nächste Generation“.");
+}
+function mainNext(){
+  if(S.fixed) return;
+  closePop();
+  const ev = S.pending;
+  const parents = ev ? S.animals.filter(a=>ev.survivors.has(a.id)) : S.animals;
+  const now = performance.now();
+  S.gen++;
+  let next = [];
+  for(let i=0;i<S.N;i++){
+    const p1 = parents[rand(parents.length)], p2 = parents[rand(parents.length)];
+    const from = Math.random()<.5 ? p1 : p2;
+    next.push({allele:from.allele, gen:S.gen, p1:p1.id, p2:p2.id, from:from.id, t0:now, event:ev?ev.name:null});
+  }
+  next = sortByAllele(next,["A","a"]);
+  next.forEach((a,i)=>a.id=i+1);
+  S.animals = next;
+  S.pending = null;
+
+  const c = countBy(next,["A","a"]);
+  const prev = S.history[S.history.length-1];
+  S.history.push({gen:S.gen, A:c.A, a:c.a, event:ev?ev.name:null});
+  lastAction = now;
+
+  addLog(`Generation ${S.gen}${ev?` (nach ${ev.name})`:""}: {A} ${pct(c.A,S.N)} %, {a} ${pct(c.a,S.N)} %`);
+
+  if(c.A===0 || c.a===0){
+    const win = c.A ? "A" : "a", lose = c.A ? "a" : "A";
+    S.fixed = win;
+    stopAuto();
+    addLog(`Allel {${win}} ist fixiert, Allel {${lose}} ist verloren`);
+    setInfo(`Allel {${win}} ist fixiert`,
+      [`Alle ${S.N} Tiere tragen jetzt Allel {${win}}, also 100 %. Allel {${lose}} ist verloren, also 0 %.`,
+       `Das hat ${S.gen-1} Generationen gedauert. Ohne Mutation oder Zuwanderung kommt Allel {${lose}} nicht zurück.`,
+       "Gendrift hat entschieden, nicht ein Vorteil."],
+      "Starte neu oder probiere eine andere Populationsgröße.");
+    update();
+    return;
+  }
+
+  const p0 = pct(prev.A,S.N), p1 = pct(c.A,S.N);
+  const change = p1===p0 ? `Allel {A} bleibt bei ${p1} %.`
+    : `Allel {A} ${p1>p0?"steigt":"sinkt"} von ${p0} % auf ${p1} %, Allel {a} ${p1>p0?"sinkt":"steigt"} auf ${100-p1} %.`;
+  const how = ev
+    ? `Alle ${S.N} Tiere stammen von den ${ev.k} Überlebenden des Ereignisses „${ev.name}“ ab.`
+    : "Jedes neue Tier hat das Allel eines zufällig ausgewählten Elterntiers geerbt. Manche Tiere hatten mehrere Nachkommen, andere keine.";
+  setInfo(`Generation ${S.gen}`,
+    [change, how, "Kein Allel hat einen Vorteil. Die Veränderung ist Zufall."],
+    S.auto ? "" : "Weiter mit „Nächste Generation“, oder löse ein Zufallsereignis aus.");
+  update();
+}
+function mainEvent(){
+  if(S.fixed || S.pending) return;
+  stopAuto();
+  closePop();
+  const name = EVENTS_MAIN[rand(EVENTS_MAIN.length)];
+  const k = Math.max(2, Math.round(S.N*(.3+Math.random()*.2)));
+  const surv = shuffle(S.animals).slice(0,k);
+  const c = countBy(surv,["A","a"]);
+  S.pending = {name, k, survivors:new Set(surv.map(a=>a.id)), t0:performance.now()};
+  lastAction = performance.now();
+  addLog(`${name}: nur ${k} von ${S.N} Tieren überleben ({A} ${c.A}, {a} ${c.a})`);
+  const paras = [
+    `Nur ${k} von ${S.N} Tieren überleben. Wer überlebt, ist Glück: Die Farbe spielt dabei keine Rolle.`,
+    `Unter den Überlebenden: {A} ${c.A} Tiere, {a} ${c.a} Tiere. Nur sie bekommen Nachkommen.`
+  ];
+  if(c.A===0 || c.a===0){
+    const lost = c.A===0 ? "A" : "a";
+    paras.push(`Kein Tier mit Allel {${lost}} hat überlebt. In der nächsten Generation ist {${lost}} verloren.`);
+  }
+  setInfo(`${name}!`, paras, "Klicke auf „Nächste Generation“.");
+  update();
+}
+function toggleAuto(){
+  if(S.auto){ stopAuto(); update(); return; }
+  if(S.fixed) return;
+  S.auto = true;
+  const speed = S.N>=50 ? 380 : S.N>=20 ? 520 : 650;
+  autoTimer = setInterval(()=>{ if(MODE!=="main" || S.fixed){ stopAuto(); update(); return; } mainNext(); }, speed);
+  mainNext();
+}
+function stopAuto(){
+  if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
+  if(S) S.auto = false;
+}
+
+function drawMainScene(ctx,w,h,now){
+  const pal = PALETTES.main;
+  // Himmel und Wiese
+  const horizon = Math.round(h*.24);
+  ctx.fillStyle=C.sky; ctx.fillRect(0,0,w,horizon);
+  ctx.fillStyle=C.hill;
+  ctx.beginPath(); ctx.moveTo(0,horizon+6);
+  ctx.quadraticCurveTo(w*.25,horizon-18,w*.5,horizon+2);
+  ctx.quadraticCurveTo(w*.75,horizon+18,w,horizon-6);
+  ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.fill();
+  ctx.fillStyle=C.meadow; ctx.fillRect(0,horizon+14,w,h);
+  cloud(ctx,w*.48,h*.06,.8); cloud(ctx,w*.80,h*.03,.65);
+
+  // Kopfzeile im Bild
+  txt(ctx,`Generation ${S.gen}`,18,34,{size:24,weight:700});
+  txt(ctx,`${S.N} Tiere`,18,56,{size:15,color:C.muted});
+  if(S.pending){
+    pill(ctx,`${S.pending.name}: nur ${S.pending.k} Tiere überleben`, w-16, 16, {align:"right"});
+  }else if(S.fixed){
+    pill(ctx,`Allel ${S.fixed} fixiert (100 %)`, w-16, 16, {align:"right", bg:S.fixed==="A"?"#DCE6FA":"#F8DEDC"});
+  }
+
+  const rect = {x:16, y:Math.max(68,h*.2), w:w-32, h:h-Math.max(68,h*.2)-24};
+  const g = fitGrid(S.animals.length, rect, 128);
+  S.hits = [];
+  const evT = S.pending ? Math.min(1,(now-S.pending.t0)/320) : 0;
+  S.animals.forEach((a,i)=>{
+    const p = g.pos[i];
+    const alpha = fadeIn(a,i,now);
+    const dead = S.pending && !S.pending.survivors.has(a.id);
+    if(dead){
+      bunny(ctx,p.x,p.y,g.cell,pal[a.allele],a.allele,{ghost:true,alpha:REDUCED?1:evT});
+      if(!REDUCED && evT<1) bunny(ctx,p.x,p.y,g.cell,pal[a.allele],a.allele,{alpha:1-evT});
+    }else{
+      bunny(ctx,p.x,p.y - (1-alpha)*g.cell*.12,g.cell,pal[a.allele],a.allele,{alpha});
+    }
+    S.hits.push({x:p.x,y:p.y+.08*g.cell,r:.34*g.cell,a});
+  });
+}
+function drawMainChart(ctx,w,h){
+  const N=S.N, hist=S.history;
+  const L=48, R=74, T=36, B=30;
+  const cw=w-L-R, ch=h-T-B;
+  txt(ctx,"Allelhäufigkeit pro Generation",16,23,{size:16,weight:700});
+  const maxG = Math.max(20, hist.length);
+  const X = g => L + (g-1)/(maxG-1)*cw;
+  const Y = v => T + ch - v/N*ch;
+  // Gitter
+  ctx.lineWidth=1;
+  for(const p of [0,25,50,75,100]){
+    const y=T+ch-p/100*ch;
+    ctx.strokeStyle = p===50 ? "#CBD6D1" : C.grid;
+    ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(L+cw,y); ctx.stroke();
+    txt(ctx,`${p} %`,L-8,y+4,{size:12,color:C.muted,align:"right"});
+  }
+  const step = maxG<=20 ? 5 : maxG<=60 ? 10 : maxG<=150 ? 25 : 50;
+  for(let g=1; g<=maxG; g++){
+    if(g!==1 && g%step!==0) continue;
+    txt(ctx,String(g),X(g),T+ch+17,{size:12,color:C.muted,align:"center"});
+  }
+  // Ereignisse
+  hist.forEach(e=>{
+    if(!e.event) return;
+    const x=X(e.gen);
+    ctx.save(); ctx.setLineDash([4,4]); ctx.strokeStyle="#B9A23A";
+    ctx.beginPath(); ctx.moveTo(x,T); ctx.lineTo(x,T+ch); ctx.stroke(); ctx.restore();
+    if(cw/maxG>14) txt(ctx,e.event,x+4,T+12,{size:11.5,color:"#7A6A1E"});
+  });
+  // Linien
+  const line = (key,color)=>{
+    ctx.strokeStyle=color; ctx.lineWidth=3; ctx.lineJoin="round";
+    ctx.beginPath();
+    hist.forEach((e,i)=>{ const x=X(e.gen), y=Y(e[key]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+    ctx.stroke();
+    if(maxG<=40){
+      ctx.fillStyle=color;
+      hist.forEach(e=>{ ctx.beginPath(); ctx.arc(X(e.gen),Y(e[key]),3.2,0,Math.PI*2); ctx.fill(); });
+    }
+  };
+  line("a",PALETTES.main.a);
+  line("A",PALETTES.main.A);
+  // Beschriftung am Linienende
+  const last=hist[hist.length-1];
+  let yA=Y(last.A), ya=Y(last.a);
+  if(Math.abs(yA-ya)<18){ const m=(yA+ya)/2; if(last.A>=last.a){ yA=m-9; ya=m+9; } else { yA=m+9; ya=m-9; } }
+  const lx = X(last.gen)+8;
+  txt(ctx,`A ${pct(last.A,N)} %`,lx,yA+5,{size:13.5,weight:700,color:PALETTES.main.A});
+  txt(ctx,`a ${pct(last.a,N)} %`,lx,ya+5,{size:13.5,weight:700,color:PALETTES.main.a});
+}
+
+/* Klick auf ein Tier */
+function openPop(hit){
+  const a = hit.a;
+  const pal = PALETTES.main;
+  let body;
+  if(a.gen===1){
+    body = `<p>Starttier mit Allel ${chip(a.allele,pal)}.</p>`;
+  }else{
+    const pair = a.p1===a.p2 ? `Tier ${a.p1}` : `Tier ${a.p1} und Tier ${a.p2}`;
+    body = `<p>Eltern: ${pair} aus Generation ${a.gen-1}.</p>
+            <p>Allel ${chip(a.allele,pal)} geerbt von Tier ${a.from}, zufällig ausgewählt.</p>` +
+           (a.event ? `<p>Die Eltern gehörten zu den Überlebenden des Ereignisses „${esc(a.event)}“.</p>` : "");
+  }
+  popEl.innerHTML = `<button class="close" type="button" aria-label="Schließen">×</button><b>Tier ${a.id}, Generation ${a.gen}</b>${body}`;
+  popEl.hidden = false;
+  const sw = stageEl.clientWidth, sh = stageEl.clientHeight;
+  const pw = popEl.offsetWidth, ph = popEl.offsetHeight;
+  let x = hit.x + hit.r + 10, y = hit.y - ph/2;
+  if(x+pw > sw-8) x = hit.x - hit.r - 10 - pw;
+  x = Math.max(8, Math.min(sw-pw-8, x));
+  y = Math.max(8, Math.min(sh-ph-8, y));
+  popEl.style.left = x+"px"; popEl.style.top = y+"px";
+  popEl.querySelector(".close").addEventListener("click", closePop);
+  S.selected = a;
+}
+function closePop(){ popEl.hidden = true; if(S) S.selected = null; }
+function hitAt(e){
+  if(MODE!=="main" || !S.hits) return null;
+  const r = sceneCanvas.getBoundingClientRect();
+  const x = e.clientX-r.left, y = e.clientY-r.top;
+  return S.hits.find(h=>Math.hypot(x-h.x,y-h.y)<=h.r) || null;
+}
+sceneCanvas.addEventListener("click", e=>{
+  const h = hitAt(e);
+  if(h) openPop(h); else closePop();
+});
+sceneCanvas.addEventListener("mousemove", e=>{
+  sceneCanvas.style.cursor = hitAt(e) ? "pointer" : "default";
+});
+
+/* ============================================================
+   2) Flaschenhalseffekt
+   ============================================================ */
+const BN_KEYS = ["A","B","C","D","E","F"];
+const BN_SIZE = 36;
+const EVENTS_BN = ["Waldbrand","Überschwemmung","Dürre","Vulkanausbruch","Sturmflut"];
+
+function bnInit(){
+  const now = performance.now();
+  const animals = [];
+  BN_KEYS.forEach(k=>{ for(let i=0;i<6;i++) animals.push({allele:k, t0:now}); });
+  animals.forEach((a,i)=>a.id=i+1);
+  S = {phase:"start", round:0, before:animals, survivors:[], after:[], event:null, lost:[],
+       history:[{label:"Start", short:"Start", n:BN_SIZE, animals}]};
+  lastAction = now;
+  addLog("Start: 36 Tiere mit den Allelen {A} {B} {C} {D} {E} {F}");
+  setInfo("Große Population, hohe Vielfalt",
+    ["36 Tiere mit sechs verschiedenen Allelen. Jedes Allel kommt sechsmal vor.",
+     "Gleich trifft eine Katastrophe die Population. Sie trifft die Tiere zufällig, unabhängig von ihren Allelen."],
+    "Klicke auf „Katastrophe auslösen“.");
+}
+function bnDisaster(){
+  if(S.phase==="disaster") return;
+  if(S.phase==="regrown"){ S.before = S.after; S.after = []; }
+  S.round++;
+  const now = performance.now();
+  const k = 4 + rand(5);                          // 4 bis 8 Überlebende
+  S.survivors = sortByAllele(shuffle(S.before).slice(0,k).map(a=>({...a, t0:now})), BN_KEYS);
+  S.event = EVENTS_BN[rand(EVENTS_BN.length)];
+  S.phase = "disaster";
+  const had = present(S.before), kept = present(S.survivors);
+  S.lost = had.filter(x=>!kept.includes(x));
+  S.history.push({label:`Katastrophe ${S.round}`, short:`K${S.round}`, n:k, animals:S.survivors});
+  lastAction = now;
+
+  addLog(`${S.event}: ${k} von ${S.before.length} überleben. ` +
+         (S.lost.length ? `Verloren: ${S.lost.map(x=>`{${x}}`).join(" ")}` : "Kein Allel verloren"));
+  const paras = [`Nur ${k} von ${S.before.length} Tieren überleben. Wer überlebt, entscheidet der Zufall.`];
+  if(S.lost.length){
+    paras.push(`Dabei ${S.lost.length===1?"ist das Allel":"sind die Allele"} ${S.lost.map(x=>`{${x}}`).join(" ")} verloren gegangen, obwohl ${S.lost.length===1?"es":"sie"} nicht schlechter ${S.lost.length===1?"war":"waren"}.`);
+  }else{
+    paras.push("Diesmal ist zufällig kein Allel verloren gegangen. Aber die Häufigkeiten haben sich verschoben.");
+  }
+  if(kept.length===1) paras.push(`Nur noch Allel {${kept[0]}} ist übrig. Die genetische Vielfalt ist komplett verloren.`);
+  setInfo(`${S.event}!`, paras, "Klicke auf „Population wächst wieder“.");
+  update();
+}
+function bnRegrow(){
+  if(S.phase!=="disaster") return;
+  const now = performance.now();
+  let next = [];
+  for(let i=0;i<BN_SIZE;i++){ const p = S.survivors[rand(S.survivors.length)]; next.push({allele:p.allele, t0:now}); }
+  next = sortByAllele(next, BN_KEYS);
+  next.forEach((a,i)=>a.id=i+1);
+  S.after = next;
+  S.phase = "regrown";
+  S.history.push({label:`Erholung ${S.round}`, short:`E${S.round}`, n:BN_SIZE, animals:next});
+  lastAction = now;
+
+  const d0 = present(S.history[0].animals).length, d1 = present(next).length;
+  addLog(`Erholung: wieder 36 Tiere, ${d1} von ${d0} Allelen übrig`);
+  const paras = [
+    `Wieder 36 Tiere, aber alle stammen von den ${S.survivors.length} Überlebenden ab.`,
+    d1<d0 ? `Es gibt nur noch ${d1} von ursprünglich ${d0} Allelen. Die Population ist wieder groß, die Vielfalt nicht.`
+          : `Noch sind alle ${d0} Allele da, aber ihre Häufigkeiten haben sich zufällig verschoben.`
+  ];
+  setInfo("Die Population ist wieder gewachsen", paras, "Löse die nächste Katastrophe aus und beobachte die Vielfalt.");
+  update();
+}
+
+function drawBnScene(ctx,w,h,now){
+  const pal = PALETTES.bn;
+  ctx.fillStyle=C.meadow; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle=C.sky; ctx.fillRect(0,0,w,40);
+
+  const top=56, bot=h-64, mid=(top+bot)/2;
+  const bx0=14, bx1=w*.40, nx1=w*.60;
+  const nh = Math.min(64, Math.max(34,(bot-top)*.2));
+  const sx = bx1 + w*.05;
+
+  // Flasche
+  ctx.beginPath();
+  ctx.moveTo(nx1, mid-nh);
+  ctx.lineTo(sx, mid-nh);
+  ctx.bezierCurveTo(bx1+w*.015, mid-nh, bx1+w*.01, top, bx1-12, top);
+  ctx.lineTo(bx0+14, top); ctx.quadraticCurveTo(bx0, top, bx0, top+14);
+  ctx.lineTo(bx0, bot-14); ctx.quadraticCurveTo(bx0, bot, bx0+14, bot);
+  ctx.lineTo(bx1-12, bot);
+  ctx.bezierCurveTo(bx1+w*.01, bot, bx1+w*.015, mid+nh, sx, mid+nh);
+  ctx.lineTo(nx1, mid+nh);
+  ctx.fillStyle=C.glass; ctx.fill();
+  ctx.strokeStyle=C.glassEdge; ctx.lineWidth=2.5; ctx.stroke();
+  ctx.fillStyle=C.glass; rrect(ctx,nx1-2,mid-nh-6,9,2*nh+12,3); ctx.fill(); ctx.stroke();
+
+  // Beschriftungen
+  const before = S.before, surv = S.survivors, after = S.after;
+  txt(ctx,"Vorher",bx0,30,{size:17,weight:700});
+  txt(ctx,`${before.length} Tiere`,bx0+64,30,{size:14,color:C.muted});
+  txt(ctx,"Überlebende",(bx1+nx1)/2+8,mid-nh-14,{size:15,weight:700,align:"center"});
+  const rx0 = nx1+w*.035, rw = w-14-rx0;
+  txt(ctx,"Nachher",rx0,30,{size:17,weight:700});
+  if(after.length) txt(ctx,`${after.length} Tiere`,rx0+76,30,{size:14,color:C.muted});
+
+  // Population im Flaschenbauch
+  const g1 = fitGrid(before.length,{x:bx0+10,y:top+10,w:bx1-bx0-24,h:bot-top-20},70);
+  const faded = S.phase!=="start";
+  before.forEach((a,i)=>{
+    const p=g1.pos[i];
+    bunny(ctx,p.x,p.y,g1.cell,pal[a.allele],a.allele, faded ? {alpha:.28} : {alpha:fadeIn(a,i,now)});
+  });
+
+  // Überlebende im Flaschenhals
+  if(surv.length && S.phase!=="start"){
+    const g2 = fitGrid(surv.length,{x:sx-w*.01,y:mid-nh+4,w:nx1-sx-4,h:2*nh-8},60);
+    surv.forEach((a,i)=>{ const p=g2.pos[i]; bunny(ctx,p.x,p.y,g2.cell,pal[a.allele],a.allele,{alpha:fadeIn(a,i,now)}); });
+  }
+
+  // Nachher
+  if(after.length){
+    const g3 = fitGrid(after.length,{x:rx0,y:top,w:rw,h:bot-top},70);
+    after.forEach((a,i)=>{ const p=g3.pos[i]; bunny(ctx,p.x,p.y,g3.cell,pal[a.allele],a.allele,{alpha:fadeIn(a,i,now)}); });
+  }else{
+    ctx.save(); ctx.setLineDash([6,6]); ctx.strokeStyle="#9DB3AA"; ctx.lineWidth=1.5;
+    rrect(ctx,rx0,top,rw,bot-top,12); ctx.stroke(); ctx.restore();
+    const msg = S.phase==="disaster" ? "Hier wächst die Population gleich wieder" : "Noch leer";
+    txt(ctx,msg,rx0+rw/2,mid,{size:14.5,color:C.muted,align:"center",base:"middle"});
+  }
+
+  // Genpool-Balken
+  const barY = h-48, barH=16;
+  poolBar(ctx,bx0,barY,bx1-bx0,barH,before,pal,`${present(before).length} Allele`);
+  if(S.phase!=="start") poolBar(ctx,sx-w*.01,barY,nx1-sx+w*.01,barH,surv,pal,`${present(surv).length} Allele`);
+  if(after.length) poolBar(ctx,rx0,barY,rw,barH,after,pal,`${present(after).length} Allele`);
+
+  if(S.phase==="disaster") pill(ctx,`${S.event}: ${surv.length} überleben`, (bx1+nx1)/2+8, 8, {align:"center"});
+}
+
+/* ============================================================
+   3) Gründereffekt
+   ============================================================ */
+const F_KEYS = ["A","B","C"];
+const F_FOUNDERS = 5, F_ISLAND = 20;
+
+function founderInit(){
+  const now = performance.now();
+  const animals = [];
+  F_KEYS.forEach(k=>{ for(let i=0;i<10;i++) animals.push({allele:k, t0:now}); });
+  animals.forEach((a,i)=>a.id=i+1);
+  S = {phase:"start", islandNo:0, source:{name:"Festland", kind:"land", animals},
+       founders:[], leftIds:new Set(), island:null,
+       history:[{label:"Festland", short:"Festland", n:30, animals}]};
+  lastAction = now;
+  addLog("Start: Festland mit 30 Tieren, Allele {A} {B} {C}");
+  setInfo("Das Festland",
+    ["30 Tiere mit den Allelen {A}, {B} und {C}. Jedes Allel kommt zehnmal vor.",
+     "Gleich verlässt eine kleine, zufällig zusammengesetzte Gruppe das Festland und besiedelt eine leere Insel."],
+    "Klicke auf „Gründergruppe auswählen“.");
+}
+function founderSelect(){
+  if(S.phase==="selected") return;
+  if(S.phase==="island"){
+    S.source = {name:S.island.name, kind:"island", animals:S.island.animals};
+    S.island = null;
+  }
+  const now = performance.now();
+  const pick = shuffle(S.source.animals).slice(0,F_FOUNDERS);
+  S.leftIds = new Set(pick.map(a=>a.id));
+  S.founders = sortByAllele(pick.map(a=>({...a, t0:now})), F_KEYS);
+  S.phase = "selected";
+  lastAction = now;
+
+  const c = countBy(S.founders,F_KEYS);
+  const has = present(S.founders), missing = present(S.source.animals).filter(x=>!has.includes(x));
+  const desc = F_KEYS.filter(k=>c[k]).map(k=>`{${k}} ${c[k]}×`).join(", ");
+  addLog(`Gründergruppe aus ${S.source.name}: ${desc}`);
+  const paras = [
+    `${F_FOUNDERS} zufällig ausgewählte Tiere verlassen ${S.source.kind==="land"?"das Festland":S.source.name}. Sie tragen: ${desc}.`
+  ];
+  if(missing.length) paras.push(`${missing.length===1?"Allel":"Die Allele"} ${missing.map(x=>`{${x}}`).join(" ")} ${missing.length===1?"ist":"sind"} nicht dabei. Auf der neuen Insel ${missing.length===1?"wird es":"werden sie"} fehlen.`);
+  else paras.push("Alle Allele sind dabei, aber nicht im gleichen Verhältnis wie vorher.");
+  setInfo("Gründer unterwegs", paras, "Klicke auf „Inselpopulation bilden“.");
+  update();
+}
+function founderIsland(){
+  if(S.phase!=="selected") return;
+  const now = performance.now();
+  S.islandNo++;
+  let animals = [];
+  for(let i=0;i<F_ISLAND;i++){ const p = S.founders[rand(S.founders.length)]; animals.push({allele:p.allele, t0:now}); }
+  animals = sortByAllele(animals,F_KEYS);
+  animals.forEach((a,i)=>a.id=i+1);
+  S.island = {name:`Insel ${S.islandNo}`, animals};
+  S.phase = "island";
+  S.history.push({label:S.island.name, short:`Insel ${S.islandNo}`, n:F_ISLAND, animals});
+  lastAction = now;
+
+  const src = S.source.animals;
+  const cs = countBy(src,F_KEYS), ci = countBy(animals,F_KEYS);
+  const cmp = F_KEYS.filter(k=>cs[k]||ci[k]).map(k=>`{${k}} ${pct(cs[k],src.length)} % → ${pct(ci[k],animals.length)} %`).join(", ");
+  addLog(`${S.island.name} besiedelt: ${F_KEYS.filter(k=>ci[k]).map(k=>`{${k}} ${ci[k]}`).join(", ")}`);
+  const paras = [
+    `Die Inselpopulation ist auf ${F_ISLAND} Tiere gewachsen. Alle stammen von den ${F_FOUNDERS} Gründern ab.`,
+    `Vergleich mit ${S.source.kind==="land"?"dem Festland":S.source.name}: ${cmp}.`,
+    "Die Allelhäufigkeiten auf der Insel weichen stark ab, nur durch die zufällige Auswahl der Gründer."
+  ];
+  if(present(animals).length===1) paras.push(`Auf der Insel gibt es nur noch Allel {${present(animals)[0]}}.`);
+  setInfo(`${S.island.name} ist besiedelt`, paras, `Wähle eine neue Gründergruppe: Dann besiedeln Tiere von ${S.island.name} die nächste Insel.`);
+  update();
+}
+
+function drawFounderScene(ctx,w,h,now){
+  const pal = PALETTES.founder;
+  ctx.fillStyle=C.sea; ctx.fillRect(0,0,w,h);
+  // Wellen
+  ctx.strokeStyle=C.wave; ctx.lineWidth=2;
+  for(let i=0;i<7;i++){
+    const x=((i*173)%Math.max(1,w-60))+20, y=((i*97)%Math.max(1,h-80))+50;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(x+8,y-6,x+16,y); ctx.quadraticCurveTo(x+24,y+6,x+32,y); ctx.stroke();
+  }
+
+  const cy = (54 + h-58)/2;
+  const L = {cx:w*.25, cy, rx:w*.225, ry:(h-122)/2};
+  const Rr = {cx:w*.79, cy, rx:w*.18, ry:(h-122)/2*.86};
+  const src = S.source;
+
+  // Landmassen
+  const land = (o,fill,edge,dashed)=>{
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(o.cx,o.cy,o.rx,o.ry,0,0,Math.PI*2);
+    ctx.fillStyle=fill; ctx.fill();
+    if(dashed) ctx.setLineDash([7,6]);
+    ctx.strokeStyle=edge; ctx.lineWidth=2; ctx.stroke();
+    ctx.restore();
+  };
+  land(L, src.kind==="land"?C.land:C.sand, src.kind==="land"?C.landEdge:C.sandEdge, false);
+  land(Rr, S.island?C.sand:"rgba(239,229,188,.55)", C.sandEdge, !S.island);
+
+  // Titel
+  txt(ctx,src.name,L.cx,22,{size:18,weight:700,align:"center"});
+  txt(ctx,"Ausgangspopulation",L.cx,41,{size:13.5,color:C.muted,align:"center"});
+  const nextName = S.island ? S.island.name : `Insel ${S.islandNo+1}`;
+  txt(ctx,nextName,Rr.cx,22,{size:18,weight:700,align:"center"});
+  txt(ctx,S.island?"neue Population":"noch unbewohnt",Rr.cx,41,{size:13.5,color:C.muted,align:"center"});
+
+  // Tiere der Ausgangspopulation
+  const inner = o => ({x:o.cx-o.rx*.78, y:o.cy-o.ry*.74, w:o.rx*1.56, h:o.ry*1.48});
+  const g1 = fitGrid(src.animals.length, inner(L), 64);
+  src.animals.forEach((a,i)=>{
+    const p=g1.pos[i];
+    const gone = S.leftIds.has(a.id) && S.phase!=="start";
+    bunny(ctx,p.x,p.y,g1.cell,pal[a.allele],a.allele, gone?{ghost:true,alpha:.85}:{alpha:fadeIn(a,i,now)});
+  });
+
+  // Überfahrt (gestrichelter Pfeil unter dem Floß)
+  const ax0 = L.cx+L.rx+4, ax1 = Rr.cx-Rr.rx-4, mx = (ax0+ax1)/2;
+  const arcY = cy + Math.min(70, h*.14);
+  ctx.save(); ctx.setLineDash([7,7]); ctx.strokeStyle=C.muted; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(ax0,cy+10); ctx.quadraticCurveTo(mx,arcY+30,ax1,cy+10); ctx.stroke(); ctx.restore();
+  ctx.fillStyle=C.muted;
+  ctx.beginPath(); ctx.moveTo(ax1+3,cy+8); ctx.lineTo(ax1-10,cy+2); ctx.lineTo(ax1-6,cy+16); ctx.fill();
+
+  if(S.phase==="selected"){
+    // Floß mit Gründern
+    const n = S.founders.length;
+    const bw = Math.min(260, Math.max(170, w*.24));
+    const cell = Math.min(50, (bw-16)/n);
+    const deckY = cy - 4;
+    const bx = mx - bw/2;
+    ctx.fillStyle="#A9845A"; ctx.strokeStyle="#6E5434"; ctx.lineWidth=2;
+    rrect(ctx,bx,deckY,bw,14,5); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle="rgba(110,84,52,.55)"; ctx.lineWidth=1.5;
+    for(let x=bx+18; x<bx+bw-8; x+=18){ ctx.beginPath(); ctx.moveTo(x,deckY+2); ctx.lineTo(x,deckY+12); ctx.stroke(); }
+    const x0 = mx - n*cell/2;
+    S.founders.forEach((a,i)=>{
+      bunny(ctx, x0+(i+.5)*cell, deckY - .4*cell, cell, pal[a.allele], a.allele, {alpha:fadeIn(a,i,now)});
+    });
+    pill(ctx,`${n} Gründer`, mx, deckY+22, {align:"center", size:14, bg:"rgba(255,255,255,.85)"});
+  }
+
+  // Insel
+  if(S.island){
+    const g2 = fitGrid(S.island.animals.length, inner(Rr), 58);
+    S.island.animals.forEach((a,i)=>{ const p=g2.pos[i]; bunny(ctx,p.x,p.y,g2.cell,pal[a.allele],a.allele,{alpha:fadeIn(a,i,now)}); });
+  }
+
+  // Genpool-Balken
+  const barY=h-46, barH=16;
+  const lw=Math.min(L.rx*1.6,260), rw=Math.min(Rr.rx*1.6,240);
+  poolBar(ctx,L.cx-lw/2,barY,lw,barH,src.animals,pal,`${src.animals.length} Tiere, ${present(src.animals).length} Allele`);
+  if(S.island) poolBar(ctx,Rr.cx-rw/2,barY,rw,barH,S.island.animals,pal,`${S.island.animals.length} Tiere, ${present(S.island.animals).length} Allele`);
+}
+
+/* ============================================================
+   Diagramm: Genpool im Verlauf (Flaschenhals und Gründer)
+   ============================================================ */
+function drawPoolHistory(ctx,w,h){
+  const pal = PALETTES[MODE], keys = Object.keys(pal);
+  const all = S.history, maxBars = Math.max(4, Math.floor((w-60)/74));
+  const list = all.slice(-maxBars);
+  const tw = txt(ctx,"Genpool im Verlauf",16,23,{size:16,weight:700});
+  if(w>=560) txt(ctx,"Anteil der Allele, jede Farbe ist ein Allel",16+tw+10,23,{size:13.5,color:C.muted});
+  const L=16, T=38, B=40, ch=h-T-B, cw=w-L*2;
+  const slot = cw/Math.max(list.length, 6);
+  const bw = Math.min(58, slot*.62);
+  list.forEach((e,i)=>{
+    const x = L + i*slot + (slot-bw)/2;
+    const c = countBy(e.animals,keys);
+    let y = T+ch;
+    for(const k of keys){
+      if(!c[k]) continue;
+      const sh = ch*c[k]/e.n;
+      ctx.fillStyle=pal[k]; ctx.fillRect(x,y-sh,bw,sh+.5);
+      if(sh>=15) txt(ctx,k,x+bw/2,y-sh/2+1,{size:12.5,weight:700,color:isLight(pal[k])?C.ink:"#fff",align:"center",base:"middle"});
+      y-=sh;
+    }
+    ctx.strokeStyle="rgba(20,48,43,.3)"; ctx.lineWidth=1; ctx.strokeRect(x+.5,T+.5,bw-1,ch-1);
+    const isLast = i===list.length-1;
+    const lab = slot>=96 ? e.label : e.short;
+    txt(ctx,lab,x+bw/2,T+ch+16,{size:12.5,weight:isLast?700:400,align:"center"});
+    txt(ctx,`${e.n} Tiere`,x+bw/2,T+ch+31,{size:12,color:C.muted,align:"center"});
+  });
+  if(all.length>list.length) txt(ctx,"ältere Schritte ausgeblendet",w-16,23,{size:12,color:C.muted,align:"right"});
+}
+
+/* ============================================================
+   Kennzahlen (rechte Spalte)
+   ============================================================ */
+function poolHTML(animals, keys, pal){
+  const n = animals.length, c = countBy(animals,keys);
+  return `<div class="pool">${keys.filter(k=>c[k]).map(k=>{
+    const p = pct(c[k],n);
+    const fg = isLight(pal[k]) ? C.ink : "#fff";
+    return `<div style="flex-grow:${c[k]};flex-basis:0;background:${pal[k]};color:${fg}">${p>=12?`${k} ${p} %`:p>=6?k:""}</div>`;
+  }).join("")}</div>`;
+}
+function renderStats(){
+  const el = $("#stats");
+  if(MODE==="main"){
+    const c = countBy(S.animals,["A","a"]);
+    let status = `<span class="status">Beide Allele vorhanden</span>`;
+    if(S.fixed) status = `<span class="status end">Allel ${S.fixed} fixiert, Allel ${S.fixed==="A"?"a":"A"} verloren</span>`;
+    else if(S.pending) status = `<span class="status">${esc(S.pending.name)}: ${S.pending.k} Überlebende</span>`;
+    el.innerHTML = `<h3>Kennzahlen</h3>
+      <div class="statline"><span class="big">Generation ${S.gen}</span><span class="small">${chip("A",PALETTES.main)} ${c.A} Tiere &nbsp; ${chip("a",PALETTES.main)} ${c.a} Tiere</span></div>
+      ${poolHTML(S.animals,["A","a"],PALETTES.main)}
+      ${status}`;
+  }else if(MODE==="bn"){
+    const pal = PALETTES.bn;
+    const cur = S.phase==="disaster" ? S.survivors : S.phase==="regrown" ? S.after : S.before;
+    const now = present(cur);
+    const chips = BN_KEYS.map(k=>chip(k,pal,!now.includes(k))).join(" ");
+    const sizes = S.phase==="start" ? "36"
+      : S.phase==="disaster" ? `${S.before.length} <span class="arrow">→</span> ${S.survivors.length}`
+      : `${S.before.length} <span class="arrow">→</span> ${S.survivors.length} <span class="arrow">→</span> ${S.after.length}`;
+    el.innerHTML = `<h3>Kennzahlen</h3>
+      <div class="statline"><span class="big">${S.round ? `Runde ${S.round}` : "Start"}</span><span class="small">${now.length} von 6 Allelen übrig</span></div>
+      <table class="kv">
+        <tr><td>Anzahl Tiere</td><td>${sizes}</td></tr>
+        <tr><td>Allele jetzt</td><td>${chips}</td></tr>
+      </table>
+      ${S.lost.length && S.phase==="disaster" ? `<p class="lost" style="margin:8px 0 0">Gerade verloren: ${S.lost.join(", ")}</p>` : ""}`;
+  }else if(MODE==="founder"){
+    const pal = PALETTES.founder;
+    const rows = S.history.slice(-5).map(e=>{
+      const cur = (S.island && e.label===S.island.name) || (!S.island && e.label===S.source.name);
+      return `<tr class="${cur?"current":""}"><td>${esc(e.label)}</td><td>${F_KEYS.map(k=>chip(k,pal,!present(e.animals).includes(k))).join(" ")}</td></tr>`;
+    }).join("");
+    el.innerHTML = `<h3>Kennzahlen</h3>
+      <div class="statline"><span class="big">${S.islandNo ? `${S.islandNo} ${S.islandNo===1?"Insel":"Inseln"} besiedelt` : "Noch keine Insel"}</span></div>
+      <table class="kv">${rows}</table>
+      ${S.history.length>5 ? `<p class="small" style="margin:6px 0 0;color:var(--muted);font-size:14px">Ältere Populationen ausgeblendet</p>` : ""}`;
+  }
+}
+
+/* ============================================================
+   Startseite: Drift-Diagramm und Illustrationen
+   ============================================================ */
+const heroCanvas = $("#heroCanvas");
+let hero = null;
+function heroData(){
+  const P=8, N=20, G=60, lines=[];
+  for(let i=0;i<P;i++){
+    let k=N/2; const arr=[k];
+    for(let g=1; g<=G; g++){
+      if(k>0 && k<N){ let n=0; for(let j=0;j<N;j++) if(Math.random()<k/N) n++; k=n; }
+      arr.push(k);
+    }
+    lines.push(arr);
+  }
+  return {P,N,G,lines,t0:performance.now()};
+}
+function heroStart(){
+  hero = heroData();
+  $("#heroCaption").textContent = "8 Populationen mit je 20 Tieren, alle starten bei 50 % Allel A. Kein Allel hat einen Vorteil.";
+  requestRender();
+}
+function drawHero(){
+  if(!hero) return;
+  const {ctx,w,h} = prep(heroCanvas);
+  const {N,G,lines} = hero;
+  const dur = 3200;
+  const prog = REDUCED ? 1 : Math.min(1,(performance.now()-hero.t0)/dur);
+  const shown = prog*G;
+  const L=46, R=92, T=12, B=44, cw=w-L-R, ch=h-T-B;
+  const X=g=>L+g/G*cw, Y=k=>T+ch-k/N*ch;
+
+  ctx.lineWidth=1;
+  for(const p of [0,50,100]){
+    const y=T+ch-p/100*ch;
+    ctx.strokeStyle = p===50 ? "#C3CFC9" : C.grid;
+    ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(L+cw,y); ctx.stroke();
+    txt(ctx,`${p} %`,L-8,y+4,{size:12.5,color:C.muted,align:"right"});
+  }
+  txt(ctx,"A fixiert",L+cw+10,Y(N)+4,{size:13.5,weight:700,color:C.blue});
+  txt(ctx,"A verloren",L+cw+10,Y(0)+4,{size:13.5,weight:700,color:C.red});
+  for(const g of [0,20,40,60]) txt(ctx,String(g),X(g),T+ch+18,{size:12.5,color:C.muted,align:"center"});
+  txt(ctx,"Generation",L+cw/2,T+ch+38,{size:12.5,color:C.muted,align:"center"});
+
+  let fixed=0, lost=0;
+  lines.forEach(arr=>{
+    const upto = Math.floor(shown);
+    const cur = arr[Math.min(upto,G)];
+    const done = cur===N || cur===0;
+    const col = cur===N ? C.blue : cur===0 ? C.red : "rgba(20,48,43,.38)";
+    ctx.strokeStyle=col; ctx.lineWidth=done?2.6:2; ctx.lineJoin="round";
+    ctx.beginPath();
+    for(let g=0; g<=upto && g<=G; g++){ const x=X(g), y=Y(arr[g]); g?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    if(upto<G){
+      const f=shown-upto, a=arr[upto], b=arr[upto+1];
+      ctx.lineTo(X(upto+f), Y(a+(b-a)*f));
+    }
+    ctx.stroke();
+    if(prog>=1){ if(arr[G]===N) fixed++; else if(arr[G]===0) lost++; }
+  });
+
+  if(prog<1){ requestRender(); }
+  else if(!hero.captioned){
+    hero.captioned = true;
+    const open = lines.length-fixed-lost;
+    $("#heroCaption").innerHTML = `8 Populationen mit je 20 Tieren, alle starten bei 50 % Allel A. <strong>Nach 60 Generationen: ${fixed}× fixiert, ${lost}× verloren${open?`, ${open}× noch offen`:""}.</strong> Gleiche Startbedingungen, unterschiedliches Ergebnis: Das ist Gendrift.`;
+  }
+}
+function illustrations(){
+  const ns = "http://www.w3.org/2000/svg";
+  const dot = (g,x,y,r,fill)=>{ const c=document.createElementNS(ns,"circle"); c.setAttribute("cx",x); c.setAttribute("cy",y); c.setAttribute("r",r); c.setAttribute("fill",fill); c.setAttribute("stroke","rgba(20,48,43,.35)"); g.appendChild(c); };
+  const m = $("#illuMain");
+  const seq = "AaAAaAaaAAaAaAAaaAaa";
+  for(let i=0;i<20;i++){ const col=i%10, row=Math.floor(i/10); dot(m,60+col*20,28+row*26,8,seq[i]==="A"?C.blue:C.red); }
+  const pb = PALETTES.bn, bk = Object.keys(pb), b = $("#illuBn");
+  let i=0;
+  for(let r=0;r<3;r++) for(let c=0;c<5;c++){ dot(b,40+c*18,24+r*18,6.5,pb[bk[i%6]]); i++; }
+  dot(b,148,42,6.5,pb.A); dot(b,160,42,6.5,pb.D);
+  [[196,30],[212,42],[196,54],[228,30],[244,48],[230,58],[262,38]].forEach(([x,y],j)=>dot(b,x,y,6.5,j%2?pb.D:pb.A));
+  const pf = PALETTES.founder, fk = Object.keys(pf), f = $("#illuFounder");
+  i=0;
+  for(let r=0;r<3;r++) for(let c=0;c<5;c++){ dot(f,42+c*18,24+r*18,6.5,pf[fk[i%3]]); i++; }
+  [[222,38],[238,38],[254,38],[230,52],[246,52]].forEach(([x,y],j)=>dot(f,x,y,6.5,j===2?pf.C:pf.A));
+}
+
+/* ============================================================
+   Ereignisse
+   ============================================================ */
+document.querySelectorAll(".choice, .tab").forEach(b=>b.addEventListener("click",e=>{
+  if(e.detail>0) b.blur();
+  start(b.dataset.mode);
+}));
+$("#backBtn").addEventListener("click", showHome);
+$("#heroAgain").addEventListener("click", heroStart);
+
+document.addEventListener("keydown", e=>{
+  if(e.altKey || e.ctrlKey || e.metaKey) return;
+  const tag = e.target.tagName;
+  if(tag==="INPUT" || tag==="TEXTAREA" || tag==="SELECT") return;
+  if($("#sim").hidden) return;
+  if(e.key==="Escape"){
+    if(!popEl.hidden){ closePop(); return; }
+    showHome(); return;
+  }
+  if(e.key===" " || e.key==="ArrowRight"){
+    // Mit Tab angesteuerter Button: Leertaste löst wie gewohnt diesen Button aus
+    if(e.key===" " && tag==="BUTTON" && e.target.matches(":focus-visible")) return;
+    e.preventDefault();
+    if(tag==="BUTTON") e.target.blur();
+    runPrimary();
+  }
+  if(e.key==="r" || e.key==="R") start(MODE);
+});
+
+const ro = new ResizeObserver(()=>requestRender());
+[stageEl, chartCanvas.parentElement, heroCanvas].forEach(el=>ro.observe(el));
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(requestRender);
+
+function route(){
+  const h = location.hash.slice(1);
+  const m = Object.keys(MODES).find(k=>MODES[k].hash===h);
+  if(m) start(m); else showHome();
+}
+window.addEventListener("hashchange", route);
+illustrations();
+route();
+</script>
+</body>
+</html>
